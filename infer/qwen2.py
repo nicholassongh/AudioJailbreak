@@ -6,11 +6,11 @@ from transformers import Qwen2AudioForConditionalGeneration, AutoProcessor
 import torch
 import gc
 
-# 修改为用户目录下的路径
+# Set model path to user directory
 MODEL_CACHE_DIR = os.path.expanduser("~/qian_jiang/models/Qwen2-Audio-7B-Instruct")
 os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
 
-# 设置模型
+# Load model
 processor = AutoProcessor.from_pretrained(
     "Qwen/Qwen2-Audio-7B-Instruct",
     cache_dir=MODEL_CACHE_DIR,
@@ -20,20 +20,20 @@ model = Qwen2AudioForConditionalGeneration.from_pretrained(
     "Qwen/Qwen2-Audio-7B-Instruct",
     cache_dir=MODEL_CACHE_DIR,
     device_map="auto",
-    torch_dtype=torch.float16  # 使用半精度
+    torch_dtype=torch.float16  # Use half precision
 )
 
 def infer_audio(audio_path: str) -> str:
     """
-    对单个音频文件进行推理
-    
+    Run inference on a single audio file.
+
     Args:
-        audio_path (str): 音频文件路径
-        
+        audio_path (str): Path to the audio file
+
     Returns:
-        str: 模型输出的文本响应
+        str: Model's text response
     """
-    
+
     conversation = [
     {"role": "user", "content": [
         {"type": "audio", "audio_url": audio_path},
@@ -50,12 +50,12 @@ def infer_audio(audio_path: str) -> str:
                         sr=processor.feature_extractor.sampling_rate
                     )[0])
 
-    # 处理输入
+    # Process inputs
     inputs = processor(text=text, audios=audios, return_tensors="pt", padding=True)
-    # 将所有输入移到 GPU
+    # Move all inputs to GPU
     inputs = {k: v.to("cuda") for k, v in inputs.items()}
 
-    # 生成响应
+    # Generate response
     generate_ids = model.generate(
         **inputs,
         max_new_tokens=256,
@@ -65,67 +65,65 @@ def infer_audio(audio_path: str) -> str:
     response = processor.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
     print(response)
     return response
- 
 
 
-# 示例：处理JSONL文件中的所有音频（保持原有功能）
 def process_jsonl(jsonl_path: str, output_dir: str, start_index: int = 0):
     """
-    处理JSONL文件中的所有音频并保存结果
-    
+    Process all audio files in a JSONL file and save results.
+
     Args:
-        jsonl_path (str): 输入JSONL文件路径
-        output_dir (str): 输出目录
-        start_index (int): 从第几行jsonl开始处理，默认为0
+        jsonl_path (str): Input JSONL file path
+        output_dir (str): Output directory
+        start_index (int): JSONL line index to start processing from (default 0)
     """
-    # 创建输出目录
+    # Create output directory
     os.makedirs(output_dir, exist_ok=True)
 
-    # 复制输入文件到输出目录
+    # Copy input file to output directory
     output_jsonl = os.path.join(output_dir, 'sorted_combined_output.jsonl')
     if not os.path.exists(output_jsonl):
         import shutil
         shutil.copy2(jsonl_path, output_jsonl)
 
-    # 读取并处理数据
+    # Read and process data
     data = []
     with open(output_jsonl, 'r', encoding='utf-8') as f:
         for line in f:
             data.append(json.loads(line))
 
-    # 创建进度记录文件
+    # Create progress tracking file
     progress_file = os.path.join(output_dir, "progress.txt")
-    
-    # 如果存在进度文件且未指定起始索引，则从上次中断处继续
+
+    # Resume from last interrupted position if progress file exists and no start index specified
     if os.path.exists(progress_file) and start_index == 0:
         with open(progress_file, 'r') as f:
             last_index = int(f.read().strip())
-            print(f"从上次中断的位置继续: 第 {last_index} 行")
+            print(f"Resuming from last interrupted position: line {last_index}")
             start_index = last_index
     else:
-        print(f"从指定位置开始: 第 {start_index} 行")
+        print(f"Starting from specified position: line {start_index}")
 
-    # 处理每个样本
+    # Process each sample
     for i, item in enumerate(data[start_index:], start=start_index):
         speech_path = item['speech_path']
-        print(f"Processing: {speech_path} (第 {i} 行)")
-        
-        # 记录当前处理的行号
+        print(f"Processing: {speech_path} (line {i})")
+
+        # Record current line number
         with open(progress_file, 'w') as f:
             f.write(str(i))
-        
-        # 使用封装的推理函数
+
+        # Use the encapsulated inference function
         response = infer_audio(speech_path)
         item['response'] = response
         print(f"Response generated for {speech_path}")
 
-        # 每处理10个样本保存一次结果
+        # Save results every 10 samples
         if i % 10 == 0 and i > 0:
             with open(output_jsonl, 'w', encoding='utf-8') as f:
                 for item in data:
                     f.write(json.dumps(item, ensure_ascii=False) + '\n')
 
-        # 每处理N个样本清理一次GPU内存
+        # Clear GPU memory every N samples
         if i % 20 == 0 and i > 0:
             torch.cuda.empty_cache()
             gc.collect()
@@ -133,36 +131,35 @@ def process_jsonl(jsonl_path: str, output_dir: str, start_index: int = 0):
 def process_batch(batch_items, batch_size=4):
     batch_audios = []
     batch_texts = []
-    
+
     for item in batch_items:
         conversation = [{"role": "user", "content": [{"type": "audio", "audio_url": item['speech_path']}]}]
         text = processor.apply_chat_template(conversation, add_generation_prompt=True, tokenize=False)
         audio = librosa.load(item['speech_path'], sr=processor.feature_extractor.sampling_rate)[0]
-        
+
         batch_audios.append(audio)
         batch_texts.append(text)
-    
-    # 批量处理输入
+
+    # Batch process inputs
     inputs = processor(text=batch_texts, audios=batch_audios, return_tensors="pt", padding=True)
     inputs = {k: v.to("cuda") for k, v in inputs.items()}
-    
-    # 批量生成响应
+
+    # Batch generate responses
     generate_ids = model.generate(**inputs, max_new_tokens=256)
     generate_ids = generate_ids[:, inputs['input_ids'].size(1):]
-    
+
     responses = processor.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
-    
+
     return responses
 
-# 使用示例
 if __name__ == "__main__":
-    # 示例1：处理单个音频文件
+    # Example 1: Process a single audio file
     # audio_path = "path/to/your/audio.wav"
     # response = infer_audio(audio_path)
     # print(f"Response: {response}")
-    
-    # 示例2：处理JSONL文件（原有功能）
+
+    # Example 2: Process a JSONL file (original functionality)
     jsonl_path = "./convert/sorted_combined_output.jsonl"
     output_dir = "./inference/qwen2_response_jsonl"
-    start_index = 1  # 从第几行开始处理，可以根据需要修改
+    start_index = 1  # Line index to start from, modify as needed
     process_jsonl(jsonl_path, output_dir, start_index)

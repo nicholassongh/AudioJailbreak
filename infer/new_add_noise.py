@@ -5,21 +5,21 @@ import os
 
 class NoiseAdder:
     def __init__(self):
-        # 初始化统计计数器
+        # Initialize statistics counters
         self.noise_stats = {
-            'pitch_shift': 0,     # 调音调
-            'time_stretch': 0,    # 调音速
-            'frequency_noise': 0, # 高低频扰动
-            'dropout': 0,         # 丢帧
-            'rain_noise': 0,      # 雨声
-            'fade': 0,            # 淡化
-            'baby_cry': 0,        # 婴儿哭声
-            'car_horn': 0,        # 车喇叭
-            'music': 0,           # 背景音乐
-            'volume': 0           # 调音高/音量
+            'pitch_shift': 0,     # Pitch adjustment
+            'time_stretch': 0,    # Speed adjustment
+            'frequency_noise': 0, # High/low frequency perturbation
+            'dropout': 0,         # Frame dropout
+            'rain_noise': 0,      # Rain sound
+            'fade': 0,            # Fade effect
+            'baby_cry': 0,        # Baby crying sound
+            'car_horn': 0,        # Car horn
+            'music': 0,           # Background music
+            'volume': 0           # Volume adjustment
         }
-        
-        # 统计每种噪声方式的具体参数使用情况
+
+        # Track detailed parameter usage per noise type
         self.detailed_stats = {
             'pitch_shift': {'up': 0, 'down': 0},
             'time_stretch': {'faster': 0, 'slower': 0},
@@ -30,13 +30,13 @@ class NoiseAdder:
             'music': {'low_freq': 0, 'mid_freq': 0, 'high_freq': 0},
             'volume': {'up': 0, 'down': 0}
         }
-        
-        # 加载噪声文件
+
+        # Load noise files
         self._load_noise_files()
-        
+
     def _load_noise_files(self):
-        """预加载噪声文件，提高效率"""
-        # 初始化背景音
+        """Pre-load noise files for efficiency."""
+        # Initialize background audio
         try:
             self.rain = AudioSegment.from_mp3("./noise_test/noise/rain.mp3") - 7
             self.baby_laugh = AudioSegment.from_mp3("./noise_test/noise/baby_laugh.mp3") - 7
@@ -45,27 +45,27 @@ class NoiseAdder:
             self.music = AudioSegment.from_mp3("./noise_test/noise/music.mp3") - 10
             self.noise_files_loaded = True
         except Exception as e:
-            print(f"警告: 无法加载噪声文件: {e}")
+            print(f"Warning: Could not load noise files: {e}")
             self.noise_files_loaded = False
 
     def get_stats(self):
-        """返回噪声使用统计信息"""
+        """Return noise usage statistics."""
         return {
             'noise_counts': self.noise_stats,
             'detailed_stats': self.detailed_stats,
             'total_noise_added': sum(self.noise_stats.values())
         }
-        
+
     def print_stats(self):
-        """打印噪声使用统计信息"""
+        """Print noise usage statistics."""
         stats = self.get_stats()
-        print("\n噪声添加统计信息:")
-        print(f"总添加噪声次数: {stats['total_noise_added']}")
-        print("\n各类型噪声使用次数:")
+        print("\nNoise addition statistics:")
+        print(f"Total noise additions: {stats['total_noise_added']}")
+        print("\nUsage count per noise type:")
         for noise_type, count in stats['noise_counts'].items():
-            print(f"- {noise_type}: {count}次")
-        
-        print("\n详细噪声参数统计:")
+            print(f"- {noise_type}: {count}")
+
+        print("\nDetailed noise parameter statistics:")
         for noise_type, params in stats['detailed_stats'].items():
             if sum(params.values()) > 0:
                 print(f"- {noise_type}: ", end="")
@@ -73,67 +73,67 @@ class NoiseAdder:
                 print(", ".join(details))
 
     def _validate_audio_file(self, file_path):
-        """验证音频文件格式和有效性"""
+        """Validate audio file format and integrity."""
         if not os.path.exists(file_path):
-            print(f"错误：文件不存在 - {file_path}")
+            print(f"Error: File not found - {file_path}")
             return False
-            
+
         try:
             audio = AudioSegment.from_file(file_path)
-            # 检查音频时长是否超过5分钟
-            if len(audio) > 5 * 60 * 1000:  # 5分钟 = 5 * 60 * 1000毫秒
-                print("错误：音频长度超过5分钟")
+            # Check if audio duration exceeds 5 minutes
+            if len(audio) > 5 * 60 * 1000:  # 5 minutes = 5 * 60 * 1000 ms
+                print("Error: Audio length exceeds 5 minutes")
                 return False
-            # 检查音频是否为空或损坏
+            # Check if audio is empty or corrupted
             if len(audio) == 0:
-                print("错误：音频文件为空")
+                print("Error: Audio file is empty")
                 return False
             return True
         except Exception as e:
-            print(f"错误：无效的音频文件格式或文件已损坏 - {e}")
+            print(f"Error: Invalid audio file format or file is corrupted - {e}")
             return False
 
     def add_noise(self, input_path, way=None, parameter=None):
         """
-        向音频添加噪声
-        
+        Add noise to an audio file.
+
         Args:
-            input_path: 音频文件路径
-            way: 噪声类型参数 (0-1之间)，为空则随机生成
-            parameter: 噪声参数 (0-1之间)，为空则随机生成
-            
+            input_path: Path to the audio file
+            way: Noise type parameter (0-1), randomly generated if None
+            parameter: Noise parameter (0-1), randomly generated if None
+
         Returns:
-            tuple: (way, parameter) 如果成功，(None, None) 如果验证失败
+            tuple: (way, parameter) on success, (None, None) if validation fails
         """
-        # 验证输入文件
+        # Validate input file
         if not self._validate_audio_file(input_path):
             return None, None
-            
-        # 初始化音频
+
+        # Initialize audio
         try:
             audio = AudioSegment.from_file(input_path)
         except Exception as e:
-            print(f"错误：无法加载音频文件 - {e}")
-            return None, None
-            
-        try:
-            other_audio, sr = librosa.load(input_path, mono=True)  # mono确保是单声道
-        except Exception as e:
-            print(f"错误：librosa无法加载音频 - {e}")
+            print(f"Error: Could not load audio file - {e}")
             return None, None
 
-        # 如果提供了way和parameter参数，则使用它们，否则随机生成
+        try:
+            other_audio, sr = librosa.load(input_path, mono=True)  # mono ensures single channel
+        except Exception as e:
+            print(f"Error: librosa could not load audio - {e}")
+            return None, None
+
+        # Use provided way and parameter if given, otherwise generate randomly
         if way is not None and parameter is not None:
             random_float = round(way, 3)
             random_float2 = round(parameter, 3)
         else:
-            # 原来的随机生成方式
+            # Original random generation
             random_float = round(np.random.uniform(0.0, 1.0), 3)
             random_float2 = round(np.random.uniform(0.0, 1.0), 3)
 
-        print(f"2.add_noise的随机数1: {random_float}, 随机数2: {random_float2}")
+        print(f"2.add_noise random1: {random_float}, random2: {random_float2}")
 
-        # 调音调
+        # Pitch shift
         if 0 < random_float < 0.1:
             self.noise_stats['pitch_shift'] += 1
             if random_float2 >= 0 and random_float2 < 0.5 and self.detailed_stats['pitch_shift']['up']<3:
@@ -142,38 +142,38 @@ class NoiseAdder:
             elif self.detailed_stats['pitch_shift']['down']<4:
                 other_audio = librosa.effects.pitch_shift(other_audio, sr=sr, n_steps=-random_float2 * 1)
                 self.detailed_stats['pitch_shift']['down'] += 1
-            
-        # 调音速
+
+        # Time stretch
         elif 0.1 <= random_float < 0.2:
             self.noise_stats['time_stretch'] += 1
-            # 确保rate参数为正数
+            # Ensure rate parameter is positive
             if random_float2 > 0 and random_float2 < 0.5 and self.detailed_stats['time_stretch']['faster']<3:
-                rate = max(1.1, 1+random_float2 * 0.1)  # 确保最大值为1.1
+                rate = max(1.1, 1+random_float2 * 0.1)  # Ensure maximum is 1.1
                 other_audio = librosa.effects.time_stretch(other_audio, rate=rate)
                 self.detailed_stats['time_stretch']['faster'] += 1
             elif self.detailed_stats['time_stretch']['slower']<6:
-                rate = max(0.9, 1-random_float2 * 0.1)  # 确保最小值为0.1
+                rate = max(0.9, 1-random_float2 * 0.1)  # Ensure minimum is 0.1
                 other_audio = librosa.effects.time_stretch(other_audio, rate=rate)
                 self.detailed_stats['time_stretch']['slower'] += 1
-            
-        # 高低频扰动
+
+        # High/low frequency perturbation
         elif 0.2 <= random_float < 0.3 and self.noise_stats['frequency_noise']<3:
             self.noise_stats['frequency_noise'] += 1
-            duration = len(other_audio) / sr  # 音频时长
+            duration = len(other_audio) / sr  # Audio duration
             t = np.linspace(0, duration, len(other_audio), endpoint=False)
             if random_float2 > 0.5:
-                # 高频扰动 (20000Hz)
+                # High-frequency perturbation (20000Hz)
                 tone = 0.1 * np.sin(2 * np.pi * 20000*(1+random_float2) * t)
                 self.detailed_stats['frequency_noise']['high'] += 1
             else:
-                # 低频扰动 (20Hz) 
+                # Low-frequency perturbation (20Hz)
                 tone = 0.1 * np.sin(2 * np.pi * 20*(1-random_float2) * t)
                 self.detailed_stats['frequency_noise']['low'] += 1
 
-            # 将扰动添加到音频中
+            # Add perturbation to audio
             other_audio = other_audio + tone
 
-        # drop_out 丢帧
+        # Frame dropout
         elif 0.3 <= random_float < 0.4 and self.noise_stats['dropout']<3:
             self.noise_stats['dropout'] += 1
             begin_time = random_float2 * len(audio)
@@ -182,44 +182,44 @@ class NoiseAdder:
             right_audio = audio[end_time:]
             audio = left_audio + right_audio
 
-        # 添加雨声
+        # Add rain sound
         elif 0.4 <= random_float < 0.5 and self.noise_stats['rain_noise']<1:
             self.noise_stats['rain_noise'] += 1
             rain = self.rain[:len(audio)]
-            rain_volume = random_float2 * 0.9  # 雨声音量在0-90%之间变化
-            rain_adjusted = rain - (8 * (1 - rain_volume))  # 调整雨声音量
-            # 随机决定是大雨还是小雨
+            rain_volume = random_float2 * 0.9  # Rain volume varies 0-90%
+            rain_adjusted = rain - (8 * (1 - rain_volume))  # Adjust rain volume
+            # Randomly decide heavy or light rain
             if random_float2 > 0.7:
-                # 大雨 - 更低的频率
+                # Heavy rain - lower frequencies
                 rain_adjusted = rain_adjusted.low_pass_filter(2000)
                 self.detailed_stats['rain_noise']['heavy'] += 1
             else:
-                # 小雨 - 更高的频率
+                # Light rain - higher frequencies
                 rain_adjusted = rain_adjusted.high_pass_filter(1000)
                 self.detailed_stats['rain_noise']['light'] += 1
             audio = audio.overlay(rain_adjusted)
 
-        # 淡化
+        # Fade effect
         elif 0.5 <= random_float < 0.6 and self.noise_stats['fade']<1:
             try:
-                if len(audio) > 4000:  # 防止过短
+                if len(audio) > 4000:  # Guard against very short audio
                     fade_duration = int(2000 * random_float2)
                     audio = audio.fade_in(fade_duration).fade_out(fade_duration)
                     self.noise_stats['fade'] += 1
             except Exception as e:
-                print(f"淡化效果添加失败，跳过: {e}")
-                # 继续处理下一个效果
+                print(f"Failed to apply fade effect, skipping: {e}")
+                # Continue to the next effect
 
-        # 添加哭声
+        # Add baby crying sound
         elif 0.6 <= random_float < 0.7 and self.noise_stats['baby_cry']<1:
             self.noise_stats['baby_cry'] += 1
             baby_cry = self.baby_cry[:len(audio)]
-            # 调整哭声音量，模拟距离远近
-            cry_volume = random_float2 * 0.8  # 哭声音量在0-80%之间变化
+            # Adjust cry volume to simulate distance
+            cry_volume = random_float2 * 0.8  # Cry volume varies 0-80%
             baby_cry_adjusted = baby_cry - (10 * (1 - cry_volume))
-            # 随机决定是持续哭声还是间歇哭声
+            # Randomly decide continuous or intermittent cry
             if random_float2 > 0.6:
-                # 间歇哭声 - 只在随机位置添加
+                # Intermittent cry - add only at a random position
                 start_pos = int(len(audio) * random_float2 * 0.5)
                 end_pos = min(start_pos + int(len(baby_cry_adjusted) * 0.7), len(audio))
                 segment = audio[start_pos:end_pos]
@@ -227,20 +227,20 @@ class NoiseAdder:
                 audio = audio[:start_pos] + segment + audio[end_pos:]
                 self.detailed_stats['baby_cry']['intermittent'] += 1
             else:
-                # 持续哭声 - 全程添加
+                # Continuous cry - overlay throughout
                 audio = audio.overlay(baby_cry_adjusted)
                 self.detailed_stats['baby_cry']['continuous'] += 1
 
-        # 添加车喇叭声
+        # Add car horn sound
         elif 0.7 <= random_float < 0.8 and self.noise_stats['car_horn']<1:
             self.noise_stats['car_horn'] += 1
             car = self.car[:len(audio)]
-            # 调整喇叭声音量，模拟距离远近
-            horn_volume = random_float2 * 0.7  # 喇叭声音量在0-70%之间变化
+            # Adjust horn volume to simulate distance
+            horn_volume = random_float2 * 0.7  # Horn volume varies 0-70%
             car_adjusted = car - (12 * (1 - horn_volume))
-            # 随机决定是单次喇叭还是多次喇叭
+            # Randomly decide single or multiple horn blasts
             if random_float2 > 0.5:
-                # 多次喇叭声 - 在不同位置添加2-3次
+                # Multiple horn blasts - add 2-3 times at different positions
                 num_horns = 2 + int(random_float2 * 2)
                 for i in range(num_horns):
                     start_pos = int(len(audio) * (i + random_float2) / (num_horns + 1))
@@ -250,33 +250,33 @@ class NoiseAdder:
                     audio = audio[:start_pos] + segment + audio[end_pos:]
                 self.detailed_stats['car_horn']['multiple'] += 1
             else:
-                # 单次喇叭声 - 在随机位置添加
+                # Single horn blast - add at a random position
                 start_pos = int(len(audio) * random_float2)
                 audio = audio.overlay(car_adjusted, position=start_pos)
                 self.detailed_stats['car_horn']['single'] += 1
 
-        # 添加纯音乐
+        # Add background music
         elif 0.8 <= random_float < 0.9 and self.noise_stats['music']<1:
             self.noise_stats['music'] += 1
             music = self.music[:len(audio)]
-            # 调整音乐音量，作为背景音
-            music_volume = random_float2 * 0.6  # 音乐音量在0-60%之间变化
+            # Adjust music volume as background
+            music_volume = random_float2 * 0.6  # Music volume varies 0-60%
             music_adjusted = music - (15 * (1 - music_volume))
-            # 随机决定音乐类型特性
+            # Randomly decide music type characteristics
             if random_float2 > 0.7:
-                # 低频音乐 - 模拟低音较重的音乐
+                # Low-frequency music - simulates bass-heavy music
                 music_adjusted = music_adjusted.low_pass_filter(1200)
                 self.detailed_stats['music']['low_freq'] += 1
             elif random_float2 > 0.4:
-                # 中频音乐 - 保持原样
+                # Mid-frequency music - keep as is
                 self.detailed_stats['music']['mid_freq'] += 1
             else:
-                # 高频音乐 - 模拟高音较多的音乐
+                # High-frequency music - simulates treble-heavy music
                 music_adjusted = music_adjusted.high_pass_filter(800)
                 self.detailed_stats['music']['high_freq'] += 1
             audio = audio.overlay(music_adjusted)
 
-        # 调音高/音量
+        # Volume adjustment
         elif 0.9 <= random_float <= 1:
             self.noise_stats['volume'] += 1
             if random_float2 > 0 and random_float2 < 0.5 and self.detailed_stats['volume']['up']<6:
@@ -286,10 +286,10 @@ class NoiseAdder:
                 audio = audio - 0.8 * random_float
                 self.detailed_stats['volume']['down'] += 1
 
-        # 准备输出
+        # Prepare output
         try:
             if 0 <= random_float < 0.3:
-                # 这样处理是为了防止失真
+                # Process this way to prevent distortion
                 MAX_INT16 = 32767
                 other_audio_int16 = (other_audio * MAX_INT16).astype(np.int16)
                 to_audio = AudioSegment(
@@ -302,14 +302,14 @@ class NoiseAdder:
             else:
                 audio.export(input_path, format="mp3")
         except Exception as e:
-            print(f"错误：导出音频文件失败 - {e}")
+            print(f"Error: Failed to export audio file - {e}")
             return None, None
-            
-        return random_float, random_float2  # 返回使用的噪声参数，方便记录
 
-# 为了兼容旧代码，提供一个全局实例和函数
+        return random_float, random_float2  # Return the noise parameters used for logging
+
+# Provide a global instance and function for backwards compatibility
 noise_adder = NoiseAdder()
 
 def add_noise(input_path, way=None, parameter=None):
-    """兼容性函数，供旧代码调用"""
+    """Compatibility function for legacy code."""
     return noise_adder.add_noise(input_path, way, parameter)

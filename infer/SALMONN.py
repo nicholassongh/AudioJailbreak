@@ -1,15 +1,15 @@
-#链接：https://github.com/bytedance/SALMONN,具体部署见该项目README.md
+# Link: https://github.com/bytedance/SALMONN — see that project's README.md for deployment instructions
 
-#需要指定ckpt: "/.../salmonn_v1.pth"
+# Requires specifying ckpt: "/.../salmonn_v1.pth"
 
-#在/home/xiuying.chen/qian_jiang/AudioJailbreak/inference/SALMONN
+# Working directory: /home/xiuying.chen/qian_jiang/AudioJailbreak/inference/SALMONN
 
-#inference/SALMONN/cli_inference.py定义了输入输出路径
-#inference/SALMONN/configs/decode_config.yaml定义了需要的模型
+# inference/SALMONN/cli_inference.py defines input/output paths
+# inference/SALMONN/configs/decode_config.yaml defines the required models
 
-# 运行python3 cli_inference.py --cfg-path configs/decode_config.yaml
+# Run: python3 cli_inference.py --cfg-path configs/decode_config.yaml
 
-#cli_inference.py 的代码如下，你需要放到SALMONN目录下!
+# The cli_inference.py code below must be placed in the SALMONN directory!
 
 # Copyright (2024) Tsinghua University, Bytedance Ltd. and/or its affiliates
 #
@@ -41,7 +41,7 @@ import soundfile as sf
 parser = argparse.ArgumentParser()
 parser.add_argument("--cfg-path", type=str, required=True, help='path to configuration file')
 parser.add_argument("--device", type=str, default="cuda:0")
-parser.add_argument("--start-line", type=int, default=0, help='从哪一行开始处理')
+parser.add_argument("--start-line", type=int, default=0, help='Line number to start processing from')
 parser.add_argument(
     "--options",
     nargs="+",
@@ -59,94 +59,93 @@ model.eval()
 
 wav_processor = WhisperFeatureExtractor.from_pretrained(cfg.config.model.whisper_path)
 
-# 定义输入输出路径
+# Define input/output paths
 input_jsonl = '/home/xiuying.chen/qian_jiang/AudioJailbreak/convert/bon_sorted_combined_output.jsonl'
 output_dir = '/home/xiuying.chen/qian_jiang/AudioJailbreak/inference/SALMONN_response_jsonl/bon'
 output_jsonl = os.path.join(output_dir, 'new_bon_sorted_combined_output.jsonl')
 
-# 创建输出目录
+# Create output directory
 os.makedirs(output_dir, exist_ok=True)
 
-# 如果输出文件不存在，则复制原始jsonl文件
+# Copy original JSONL file to output if output doesn't exist
 if not os.path.exists(output_jsonl):
     shutil.copy2(input_jsonl, output_jsonl)
 
-# 固定的prompt
+# Fixed prompt
 prompt = "Please answer the questions in the wav file"
 
-# 读取jsonl文件
+# Read JSONL file
 with open(output_jsonl, 'r') as f:
     lines = f.readlines()
 
-# 检查已处理的行
+# Check already-processed lines
 processed_lines = []
 for i, line in enumerate(lines):
     data = json.loads(line)
     if 'response' in data and data['response'] and not data['response'].startswith('Error:'):
         processed_lines.append(i)
 
-# 确定起始行
+# Determine starting line
 start_line = args.start_line
 if start_line == 0 and processed_lines:
     start_line = max(processed_lines) + 1
 
-print(f"从第 {start_line} 行开始处理，共 {len(lines)} 行")
+print(f"Starting from line {start_line}, total {len(lines)} lines")
 
-# 在处理音频之前添加转换函数
 def convert_audio(input_path, target_sr=16000):
-    """转换音频到指定采样率的WAV格式"""
-    # 读取音频
+    """Convert audio to WAV format at the specified sample rate."""
+    # Read audio
     y, sr = librosa.load(input_path, sr=target_sr)
-    
-    # 创建临时WAV文件路径
+
+    # Create temporary WAV file path
     temp_dir = "/home/xiuying.chen/qian_jiang/AudioJailbreak/inference/temp_audio"
     os.makedirs(temp_dir, exist_ok=True)
     output_path = os.path.join(temp_dir, os.path.splitext(os.path.basename(input_path))[0] + '.wav')
-    
-    # 保存为WAV文件
+
+    # Save as WAV file
     sf.write(output_path, y, target_sr)
     return output_path
 
-# 处理jsonl文件
+# Process JSONL file
 for i in tqdm(range(start_line, len(lines))):
     line = lines[i]
     data = json.loads(line)
-    
-    # 转换音频路径
+
+    # Convert audio path
     mp3_path = data['speech_path']
-    
+
     try:
-        # 转换音频到正确的格式
+        # Convert audio to the correct format
         wav_path = convert_audio(mp3_path)
-        
+
         samples = prepare_one_sample(wav_path, wav_processor)
         formatted_prompt = [
             cfg.config.model.prompt_template.format("<Speech><SpeechHere></Speech> " + prompt.strip())
         ]
-        
-        # 生成回复
+
+        # Generate response
         with torch.cuda.amp.autocast(dtype=torch.float16):
             response = model.generate(samples, cfg.config.generate, prompts=formatted_prompt)[0]
-        
-        print(f"处理 {mp3_path}")
-        print(f"回复: {response}")
-        
-        # 更新response字段
+
+        print(f"Processing {mp3_path}")
+        print(f"Response: {response}")
+
+        # Update response field
         data['response'] = response
-        
-        # 删除临时WAV文件
+
+        # Delete temporary WAV file
         os.remove(wav_path)
-        
+
     except Exception as e:
-        print(f"处理 {mp3_path} 时出错: {str(e)}")
+        print(f"Error processing {mp3_path}: {str(e)}")
         data['response'] = f"Error: {str(e)}"
-    
-    # 更新当前行
+
+    # Update current line
     lines[i] = json.dumps(data) + '\n'
-    
-    # 实时保存当前处理的行（追加模式）
+
+    # Save the current line in real time (append mode)
     with open(output_jsonl, 'a') as f:
-        if i == start_line:  # 如果是第一行，先清空文件
+        if i == start_line:  # If this is the first line, clear the file first
             f.seek(0)
             f.truncate()
-        f.write(lines[i])  # 只写入当前处理的行
+        f.write(lines[i])  # Write only the current line

@@ -95,7 +95,7 @@ if __name__ == '__main__':
     evaluator = PolicyViolationEvaluator()
     results = evaluator.evaluate(answer_dataset)
     
-    # 计算所有类别的平均值
+    # Compute average across all categories
     all_scores = [cat_result['policy_violation'] for cat_result in results.values()]
     results['overall_average'] = {
         'policy_violation': sum(all_scores) / len(all_scores)

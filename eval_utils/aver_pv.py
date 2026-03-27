@@ -3,23 +3,23 @@ import json
 import os
 
 def calculate_average_policy_violation(file_path):
-    # 读取JSON文件
+    # Read JSON file
     with open(file_path, 'r') as f:
         data = json.load(f)
-    
-    # 提取所有policy_violation值
+
+    # Extract all policy_violation values
     pv_values = [data[category]["policy_violation"] for category in data]
-    
-    # 计算平均值
+
+    # Compute average
     average_pv = sum(pv_values) / len(pv_values) if pv_values else 0
-    
-    # 添加平均值到原数据
+
+    # Add average to the original data
     data["average_policy_violation"] = average_pv
-    
-    # 写回文件
+
+    # Write back to file
     with open(file_path, 'w') as f:
         json.dump(data, f, indent=4)
-    
+
     return average_pv
 
 if __name__ == "__main__":

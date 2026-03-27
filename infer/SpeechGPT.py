@@ -1,19 +1,19 @@
-#链接：https://github.com/0nutation/SpeechGPT，具体部署见该项目README.md
+# Link: https://github.com/0nutation/SpeechGPT — see that project's README.md for deployment instructions
 
 
-#./inference/SpeechGPT/speechgpt/src/infer/cli_infer.py 用这个
-#inference/SpeechGPT/speechgpt/src/infer/cli_infer.py定义了相对路径
+# Use: ./inference/SpeechGPT/speechgpt/src/infer/cli_infer.py
+# inference/SpeechGPT/speechgpt/src/infer/cli_infer.py defines relative paths
 
-#运行
+# Run:
 
-# #python3 speechgpt/src/infer/cli_infer.py \
+# python3 speechgpt/src/infer/cli_infer.py \
 # --model-name-or-path "path/to/SpeechGPT-7B-cm" \
 # --lora-weights "path/to/SpeechGPT-7B-com" \
 # --s2u-dir "${s2u_dir}" \
 # --vocoder-dir "${vocoder_dir} \
-# --output-dir "output" 
+# --output-dir "output"
 
-#SpeechGPT/speechgpt/src/infer/cli_infer.py修改后的代码如下
+# Modified code for SpeechGPT/speechgpt/src/infer/cli_infer.py follows below
 
 import sys
 import os
@@ -48,10 +48,10 @@ DEFAULT_GEN_PARAMS = {
         "max_new_tokens": 1024,
         "min_new_tokens": 10,
         "temperature": 0.8,
-        "do_sample": True, 
+        "do_sample": True,
         "top_k": 60,
         "top_p": 0.8,
-        }  
+        }
 device = torch.device('cuda')
 
 
@@ -68,25 +68,25 @@ def extract_text_between_tags(text, tag1='[SpeechGPT] :', tag2='<eoa>'):
 
 class SpeechGPTInference:
     def __init__(
-        self, 
+        self,
         model_name_or_path: str,
         lora_weights: str=None,
         s2u_dir: str="speechgpt/utils/speech2unit/",
-        vocoder_dir: str="speechgpt/utils/vocoder/", 
+        vocoder_dir: str="speechgpt/utils/vocoder/",
         output_dir="speechgpt/output/"
         ):
-        
-        # 检查CUDA是否可用
+
+        # Check if CUDA is available
         if not torch.cuda.is_available():
             raise RuntimeError("CUDA is not available. This program requires GPU to run.")
-        
+
         self.meta_instruction = META_INSTRUCTION
         self.template= "[Human]: {question} <eoh>. [SpeechGPT]: "
 
 
         #speech2unit
         self.s2u = Speech2Unit(ckpt_dir=s2u_dir)
-        
+
         #model
         self.model = LlamaForCausalLM.from_pretrained(
             model_name_or_path,
@@ -103,7 +103,7 @@ class SpeechGPTInference:
                 device_map="auto",
             )
 
-        self.model.half()  
+        self.model.half()
 
         self.model.eval()
         if torch.__version__ >= "2" and sys.platform != "win32":
@@ -113,7 +113,7 @@ class SpeechGPTInference:
         self.tokenizer = LlamaTokenizer.from_pretrained(
             model_name_or_path)
         self.tokenizer.pad_token_id = (0)
-        self.tokenizer.padding_side = "left" 
+        self.tokenizer.padding_side = "left"
 
 
         #generation
@@ -161,7 +161,7 @@ class SpeechGPTInference:
 
 
     def forward(
-        self, 
+        self,
         prompts: List[str]
     ):
         with torch.no_grad():
@@ -170,7 +170,7 @@ class SpeechGPTInference:
             for prompt in prompts:
                 preprocessed_prompts.append(self.preprocess(prompt))
 
-            input_ids = self.tokenizer(preprocessed_prompts, return_tensors="pt", padding=True, 
+            input_ids = self.tokenizer(preprocessed_prompts, return_tensors="pt", padding=True,
                                      truncation=True, max_length=512).input_ids
             for input_id in input_ids:
                 if input_id[-1] == 2:
@@ -200,57 +200,57 @@ class SpeechGPTInference:
             #postprocess
             responses = [self.postprocess(x) for x in responses]
 
-            # 只返回textAnswer部分
+            # Return only the textAnswer portion
             text_responses = []
             for r in responses:
-                if isinstance(r, dict):  # 确保r是字典
+                if isinstance(r, dict):  # Ensure r is a dict
                     if r.get("textAnswer"):
                         text_responses.append(r["textAnswer"])
                     elif r.get("answer"):
                         text_responses.append(r["answer"])
                 else:
-                    text_responses.append(str(r))  # 如果不是字典，直接转为字符串
-            
+                    text_responses.append(str(r))  # If not a dict, convert directly to string
+
             return text_responses[0] if len(text_responses) == 1 else text_responses
 
     def process_jsonl(self, input_jsonl, output_jsonl):
-        """处理jsonl文件中的音频文件并保存响应"""
-        # 清空输出文件
+        """Process audio files in a JSONL file and save responses."""
+        # Clear output file
         #open(output_jsonl, 'w').close()
-        
-        # 先计算总行数
+
+        # Count total lines first
         with open(input_jsonl, 'r') as f:
             total_lines = sum(1 for _ in f)
-        
-        # 逐行读取和处理
+
+        # Read and process line by line
         with open(input_jsonl, 'r') as f:
             for i, line in enumerate(f, 1):
                 print(f"Processing file {i}/{total_lines}...")
                 data = json.loads(line)
-                
-                # 处理每一行
+
+                # Process each line
                 audio_path = data.get('speech_path')
                 audio_path = '../.' + audio_path
                 if audio_path and os.path.exists(audio_path):
                     try:
                         print(f"Processing audio: {audio_path}")
-                        # 处理音频文件
+                        # Process audio file
                         prompt = f"this is input:{audio_path}"
                         response = self.forward([prompt])
-                        
-                        # 更新response字段
+
+                        # Update response field
                         if isinstance(response, str):
                             data['response'] = response
                         elif isinstance(response, list):
                             data['response'] = response[0] if response else ""
                         print("Response generated successfully")
-                        print(f"Generated response: {data['response'][:100]}...")  # 打印部分响应内容
-                        
+                        print(f"Generated response: {data['response'][:100]}...")  # Print partial response
+
                     except Exception as e:
                         logger.error(f"Error processing {audio_path}: {str(e)}")
                         data['response'] = f"Error: {str(e)}"
-                
-                # 保存结果
+
+                # Save result
                 with open(output_jsonl, 'a') as f_out:
                     f_out.write(json.dumps(data) + '\n')
                     f_out.flush()
@@ -261,11 +261,11 @@ class SpeechGPTInference:
             pred_wav.detach().cpu().numpy(),
             16000,
         )
-        
+
     def __call__(self, input):
         return self.forward(input)
 
-    
+
     def interact(self):
         prompt = str(input(f"Please talk with {NAME}:\n"))
         while prompt != "quit":
@@ -276,9 +276,9 @@ class SpeechGPTInference:
                 print(e)
 
             prompt = str(input(f"Please input prompts for {NAME}:\n"))
-            
 
-            
+
+
 if __name__=='__main__':
     model_name_or_path = "/mnt/data/qianjiang/SpeechGPT-7B-cm"
     lora_weights = "/mnt/data/qianjiang/SpeechGPT-7B-com"
@@ -286,7 +286,7 @@ if __name__=='__main__':
     vocoder_dir = "/home/xiuying.chen/qian_jiang/AudioJailbreak/inference/SpeechGPT/speechgpt/utils/vocoder"
     output_dir = "/home/xiuying.chen/qian_jiang/AudioJailbreak/inference/SpeechGPT_response_jsonl"
     mode = "batch"
-    
+
     os.makedirs(output_dir, exist_ok=True)
 
     infer = SpeechGPTInference(
@@ -300,21 +300,13 @@ if __name__=='__main__':
     if mode == 'interact':
         infer.interact()
     else:
-        # 处理jsonl文件
+        # Process JSONL file
         input_jsonl = "/home/xiuying.chen/qian_jiang/AudioJailbreak/convert/wav_combined_output.jsonl"
         output_jsonl = os.path.join(output_dir, "wav_combined_output.jsonl")
-        
-        # 复制输入文件到输出目录
+
+        # Copy input file to output directory
         import shutil
         shutil.copy2(input_jsonl, output_jsonl)
-        
-        # 处理文件
+
+        # Process file
         infer.process_jsonl(input_jsonl, output_jsonl)
-
-
-
-
-
-
-
-

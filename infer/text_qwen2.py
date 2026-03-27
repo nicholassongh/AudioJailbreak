@@ -4,13 +4,13 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
-#这个后面细看一下 不知道为什么跑得这么慢
+# TODO: investigate why this runs so slowly
 
-# 设置模型路径
+# Set model path
 MODEL_CACHE_DIR = "/mnt/data/huggingface/transformers/models"
-MODEL_NAME = "Qwen/Qwen2-7B-Instruct"  # 使用文本模态的模型
+MODEL_NAME = "Qwen/Qwen2-7B-Instruct"  # Use the text-modality model
 
-# 加载模型和分词器
+# Load model and tokenizer
 tokenizer = AutoTokenizer.from_pretrained(
     MODEL_NAME,
     cache_dir=MODEL_CACHE_DIR,
@@ -26,80 +26,79 @@ model = AutoModelForCausalLM.from_pretrained(
 
 def infer_text(prompt: str) -> str:
     """
-    对单个文本进行推理
-    
+    Run inference on a single text prompt.
+
     Args:
-        prompt (str): 文本提示
-        
+        prompt (str): Text prompt
+
     Returns:
-        str: 模型输出的文本响应
+        str: Model's text response
     """
-    # 构建对话格式
+    # Build conversation format
     conversation = [
         {"role": "user", "content": prompt}
     ]
-    
-    # 应用对话模板
+
+    # Apply conversation template
     text = tokenizer.apply_chat_template(conversation, tokenize=False)
-    
-    # 编码输入
+
+    # Encode input
     inputs = tokenizer(text, return_tensors="pt").to(model.device)
-    
-    # 生成响应
+
+    # Generate response
     with torch.no_grad():
         generate_ids = model.generate(
             **inputs,
             max_new_tokens=256,
         )
-    
-    # 解码响应
-    response = tokenizer.batch_decode(generate_ids[:, inputs['input_ids'].size(1):], 
-                                      skip_special_tokens=True, 
+
+    # Decode response
+    response = tokenizer.batch_decode(generate_ids[:, inputs['input_ids'].size(1):],
+                                      skip_special_tokens=True,
                                       clean_up_tokenization_spaces=False)[0]
-    
+
     return response
 
-# 处理JSONL文件
 def process_jsonl(input_file: str, output_file: str):
     """
-    处理JSONL文件中的所有文本并保存结果
-    
+    Process all text entries in a JSONL file and save results.
+
     Args:
-        input_file (str): 输入JSONL文件路径
-        output_file (str): 输出JSONL文件路径
+        input_file (str): Input JSONL file path
+        output_file (str): Output JSONL file path
     """
-    # 创建输出目录
+    # Create output directory
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    
-    # 读取并处理数据
+
+    # Read and process data
     with open(input_file, 'r') as f:
         lines = f.readlines()
         updated_lines = []
         i = 1
         for line in lines:
             data = json.loads(line)
-            prompt = data.get('prompt', '')  # 获取文本提示
-            
-            # 调用模型进行推理
+            prompt = data.get('prompt', '')  # Get text prompt
+
+            # Run model inference
             response_text = infer_text(prompt)
-            
-            print(f"处理第 {i} 个，共 {len(lines)} 个")
+
+            print(f"Processing {i} of {len(lines)}")
             print(response_text)
             i += 1
-            
-            # 更新数据并添加到输出列表
+
+            # Update data and append to output list
             data['response'] = response_text
             updated_lines.append(json.dumps(data) + '\n')
-    
-    # 写入输出文件
+
+    # Write to output file
             with open(output_file, 'w') as f:
                 f.writelines(updated_lines)
 
 if __name__ == "__main__":
-    # 设置输入和输出文件路径
+    # Set input and output file paths
     input_file = '/home/xiuying.chen/qian_jiang/AudioJailbreak/convert/combined_output.jsonl'
     output_dir = '/home/xiuying.chen/qian_jiang/AudioJailbreak/inference/text_Qwen2_response_jsonl'
     output_jsonl = os.path.join(output_dir, 'combined_output.jsonl')
-    
-    # 处理文件
+
+    # Process file
     process_jsonl(input_file, output_jsonl)

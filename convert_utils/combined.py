@@ -4,24 +4,25 @@ import glob
 
 def combine_jsonl_files():
     """
-    将除了total.jsonl之外的所有JSONL文件合并成一个新的JSONL文件，
-    并确保"index"键按顺序从1开始递增，同时删除所有记录中的"response"键的值
+    Merge all JSONL files except total.jsonl into a new JSONL file,
+    ensure the "index" key increments sequentially from 1,
+    and clear the "response" value in all records.
     """
-    # 获取当前目录下所有的jsonl文件
+    # Get all JSONL files in the current directory
     jsonl_files = glob.glob("*.jsonl")
-    
-    # 排除total.jsonl
+
+    # Exclude total.jsonl
     jsonl_files = [f for f in jsonl_files if f != "total.jsonl"]
     jsonl_files = [f for f in jsonl_files if f != "wav_jailbreakbench.jsonl"]
     jsonl_files = [f for f in jsonl_files if f != "combined_output.jsonl"]
-    
+
     if not jsonl_files:
-        print("❌ 没有找到JSONL文件")
+        print("❌ No JSONL files found")
         return
-    
-    print(f"🔍 找到以下JSONL文件: {jsonl_files}")
-    
-    # 读取所有文件的内容
+
+    print(f"🔍 Found the following JSONL files: {jsonl_files}")
+
+    # Read the contents of all files
     all_records = []
     for file_path in jsonl_files:
         try:
@@ -29,32 +30,32 @@ def combine_jsonl_files():
                 for line in f:
                     try:
                         record = json.loads(line.strip())
-                        # 将response键的值设为空，而不是删除键
+                        # Set the response value to empty rather than deleting the key
                         if 'response' in record:
                             record['response'] = ""
                         all_records.append(record)
                     except json.JSONDecodeError:
-                        print(f"⚠️ 跳过无效的JSON行: {line[:50]}...")
+                        print(f"⚠️ Skipping invalid JSON line: {line[:50]}...")
         except Exception as e:
-            print(f"❌ 读取文件 {file_path} 时出错: {str(e)}")
-    
-    print(f"✅ 总共读取了 {len(all_records)} 条记录")
-    
-    # 重新分配index
+            print(f"❌ Error reading file {file_path}: {str(e)}")
+
+    print(f"✅ Total records read: {len(all_records)}")
+
+    # Reassign index values
     for i, record in enumerate(all_records, 1):
         record["index"] = i
-    
-    # 写入新文件
+
+    # Write to new file
     output_file = "combined_output.jsonl"
     with open(output_file, 'w', encoding='utf-8') as f:
         for record in all_records:
             f.write(json.dumps(record, ensure_ascii=False) + '\n')
-    
-    print(f"🎉 合并完成! 已将 {len(all_records)} 条记录写入 {output_file}")
+
+    print(f"🎉 Merge complete! Written {len(all_records)} records to {output_file}")
 
 if __name__ == "__main__":
-    # 切换到脚本所在目录
+    # Change to the script's directory
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
-    
+
     combine_jsonl_files()

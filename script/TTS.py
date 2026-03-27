@@ -16,11 +16,11 @@ class TTSService:
         self.initialize_voice_cache()
         self.audio_save_path = audio_save_path or os.path.join(os.getcwd(), 'audio_outputs')
         self.audio_prefix = audio_prefix
-        # 确保音频保存目录存在
+        # Ensure audio save directory exists
         os.makedirs(self.audio_save_path, exist_ok=True)
 
     def initialize_voice_cache(self):
-        """初始化语音配置缓存"""
+        """Initialize voice configuration cache."""
         voices = self.client.list_voices().voices
         for voice in voices:
             for language_code in voice.language_codes:
@@ -32,20 +32,21 @@ class TTSService:
                 })
 
     def get_random_voice(self, language_code):
-        """从缓存中获取指定语言的随机语音配置"""
+        """Get a random voice configuration for the specified language from cache."""
         if language_code not in self.voice_cache:
             raise ValueError(f"No voices found for language {language_code}")
-        
+
         return random.choice(self.voice_cache[language_code])
 
     def text_to_speech(self, text, output_file, language='en-US', voice_name=None, gender=None):
         """
-        将文本转换为语音
-        :param text: 要转换的文本
-        :param output_file: 输出音频文件路径
-        :param language: 语言代码，默认为英语
-        :param voice_name: 可选的指定语音名称
-        :param gender: 可选的指定语音性别
+        Convert text to speech.
+
+        :param text: Text to convert
+        :param output_file: Output audio file path
+        :param language: Language code, defaults to English
+        :param voice_name: Optional specific voice name
+        :param gender: Optional specific voice gender
         """
         if voice_name is None or gender is None:
             random_voice = self.get_random_voice(language)
@@ -72,14 +73,15 @@ class TTSService:
 
     def batch_process_jsonl(self, input_file, output_file):
         """
-        批量处理jsonl文件中的prompt并生成语音
-        :param input_file: 输入的jsonl文件路径
-        :param output_file: 输出的jsonl文件路径
+        Batch-process prompts from a JSONL file and generate speech.
+
+        :param input_file: Input JSONL file path
+        :param output_file: Output JSONL file path
         """
         import json
         import os
 
-        # 设置日志
+        # Set up logging
         log_dir = os.path.join(os.path.dirname(output_file), 'logs')
         os.makedirs(log_dir, exist_ok=True)
         log_file = os.path.join(log_dir, f'tts_errors_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
@@ -89,40 +91,40 @@ class TTSService:
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
 
-        # 使用实例的音频保存路径
+        # Use the instance's audio save path
         output_dir = self.audio_save_path
         os.makedirs(output_dir, exist_ok=True)
 
         processed_records = []
         checkpoint_file = output_file + '.checkpoint'
-        
-        # 检查断点文件
+
+        # Check for checkpoint file
         last_processed_index = -1
         if os.path.exists(checkpoint_file):
             try:
                 with open(checkpoint_file, 'r') as f:
                     last_processed_index = int(f.read().strip())
-                print(f"从断点继续处理，上次处理到索引: {last_processed_index}")
+                print(f"Resuming from checkpoint, last processed index: {last_processed_index}")
             except Exception as e:
-                logging.error(f"读取断点文件失败: {str(e)}")
-        
+                logging.error(f"Failed to read checkpoint file: {str(e)}")
+
         try:
-            # 读取并处理jsonl文件
+            # Read and process JSONL file
             with open(input_file, 'r', encoding='utf-8') as f:
                 for line in f:
                     try:
                         record = json.loads(line.strip())
-                        
-                        # 检查是否已处理
+
+                        # Skip if already processed
                         if record['index'] <= last_processed_index:
                             processed_records.append(record)
                             continue
 
-                        # 生成音频文件名
+                        # Generate audio filename
                         audio_filename = f"{self.audio_prefix}_prompt_{record['index']}.mp3"
                         audio_path = os.path.join(output_dir, audio_filename)
-                        
-                        # 转换文本到语音
+
+                        # Convert text to speech
                         if record['prompt']:
                             self.text_to_speech(
                                 text=record['prompt'],
@@ -130,53 +132,53 @@ class TTSService:
                                 language="en-US"
                             )
                             record['speech_path'] = audio_path
-                        
+
                         processed_records.append(record)
-                        
-                        # 更新断点
+
+                        # Update checkpoint
                         with open(checkpoint_file, 'w') as f:
                             f.write(str(record['index']))
-                        
+
                     except Exception as e:
-                        error_msg = f"处理记录 {record.get('index', '未知')} 时出错: {str(e)}"
+                        error_msg = f"Error processing record {record.get('index', 'unknown')}: {str(e)}"
                         logging.error(error_msg)
                         print(error_msg)
                         continue
-            
-            # 写入新的jsonl文件
+
+            # Write new JSONL file
             with open(output_file, 'w', encoding='utf-8') as f:
                 for record in processed_records:
                     f.write(json.dumps(record, ensure_ascii=False) + '\n')
-                
-            # 处理完成后删除断点文件
+
+            # Delete checkpoint file after completion
             if os.path.exists(checkpoint_file):
                 os.remove(checkpoint_file)
-            
+
         except Exception as e:
-            error_msg = f"批处理过程发生错误: {str(e)}"
+            error_msg = f"Error during batch processing: {str(e)}"
             logging.error(error_msg)
             print(error_msg)
             raise
 
-# 使用示例
+# Example usage
 if __name__ == "__main__":
     tts_service = TTSService()
-    
-    # 测试中文
+
+    # Test Chinese
     tts_service.text_to_speech(
         text="你好，世界！",
         output_file="chinese_output.mp3",
         language="cmn-CN"
     )
 
-    # 测试英文
+    # Test English
     tts_service.text_to_speech(
         text="Hello, World!",
         output_file="english_output.mp3",
         language="en-US"
     )
 
-    # 批量处理示例
+    # Batch processing example
     tts_service.batch_process_jsonl(
         input_file="path/to/input.jsonl",
         output_file="path/to/output.jsonl"
